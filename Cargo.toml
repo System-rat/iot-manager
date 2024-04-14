@@ -1,0 +1,27 @@
+[package]
+name = "iot-manager"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = [
+  ".",
+  "migration",
+]
+
+[dependencies]
+anyhow = "1.0.81"
+argon2 = { version = "0.5.3", features = ["std"] }
+askama = { version = "0.12.1", features = ["with-axum"] }
+axum = { version = "0.7.5", features = ["ws"] }
+clap = "4.5.4"
+sea-orm = { version = "0.12.15", features = ["macros", "sqlx-postgres", "runtime-tokio-rustls"] }
+tokio = { version = "1.37.0", features = ["full"] }
+tracing = "0.1.40"
+tracing-journald = "0.3.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+migration = { path = "migration" }
+base64 = "0.22.0"
+uuid = { version = "1.8.0", features = ["v4"] }
