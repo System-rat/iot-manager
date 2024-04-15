@@ -1,9 +1,19 @@
-use askama::Template;
 use anyhow::{Context, Result};
 use argon2::password_hash::rand_core::{OsRng, RngCore};
+use askama::Template;
 use migration::{Migrator, MigratorTrait};
-use poem::{get, handler, listener::TcpListener, middleware::AddData, web::{Data, Html}, EndpointExt, Route, Server};
-use sea_orm::{ActiveValue, ConnectOptions, Database, DatabaseConnection, EntityTrait};
+use poem::{
+    get, handler,
+    listener::TcpListener,
+    middleware::AddData,
+    session::{CookieConfig, CookieSession, Session},
+    web::{cookie::CookieKey, Data, Html},
+    Endpoint, EndpointExt, Middleware, Route, Server,
+};
+use sea_orm::{
+    ActiveValue, ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait,
+    QueryFilter,
+};
 use tracing::info;
 use tracing_subscriber::prelude::*;
 
@@ -29,7 +39,7 @@ fn setup_tracing() -> Result<()> {
                 tracing_subscriber::filter::EnvFilter::builder()
                     .with_default_directive(tracing_subscriber::filter::LevelFilter::ERROR.into())
                     .from_env_lossy()
-                    .add_directive("iot_manager=INFO".parse()?),
+                    .add_directive("iot_manager=DEBUG".parse()?),
             )
             .with(tracing_subscriber::fmt::layer().with_ansi(true))
             .with(tracing_journald::layer()?),
@@ -73,15 +83,105 @@ async fn ensure_admin_account(db: &DatabaseConnection) -> Result<()> {
     Ok(())
 }
 
+struct RequireAuth {
+    db: DatabaseConnection,
+}
+
+struct RequireAuthImpl<E> {
+    ep: E,
+    db: DatabaseConnection,
+}
+
+const AUTH_COOKIE_SECRET_FIELD: &str = "beans";
+const AUTH_COOKIE_USERNAME_FIELD: &str = "username";
+
+impl<E: Endpoint> Middleware<E> for RequireAuth {
+    type Output = RequireAuthImpl<E>;
+
+    fn transform(&self, ep: E) -> Self::Output {
+        RequireAuthImpl {
+            ep,
+            db: self.db.clone(),
+        }
+    }
+}
+
+impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
+    type Output = E::Output;
+
+    async fn call(&self, req: poem::Request) -> poem::Result<Self::Output> {
+        // TODO: BAD BAD BAD ALSO GIGA BAD
+        let session = req.extensions().get::<Session>().context("No session")?;
+
+        let error = poem::Error::from_status(poem::http::StatusCode::UNAUTHORIZED);
+
+        let username = session
+            .get::<String>(AUTH_COOKIE_USERNAME_FIELD)
+            .ok_or(error)?;
+
+        let user = User::find()
+            .filter(entities::user::Column::Username.eq(username))
+            .one(&self.db)
+            .await
+            .context("DB connection error")?;
+
+        if user.is_some()
+            && session
+                .get::<Vec<u8>>(AUTH_COOKIE_SECRET_FIELD)
+                .context("No login")?
+                == user.unwrap().password_hash
+        {
+            return self.ep.call(req).await;
+        }
+
+        poem::Result::Err(poem::Error::from_status(
+            poem::http::StatusCode::UNAUTHORIZED,
+        ))
+    }
+}
+
 #[handler]
 async fn test_page(db: Data<&DatabaseConnection>) -> Html<String> {
-    let count = User::find().all(*db).await.map(|u| u.len()).unwrap_or_default();
-    Html(MainPage { user_count: count }.render().unwrap_or("".to_string()))
+    let count = User::find()
+        .all(*db)
+        .await
+        .map(|u| u.len())
+        .unwrap_or_default();
+    Html(
+        MainPage { user_count: count }
+            .render()
+            .unwrap_or("".to_string()),
+    )
+}
+
+#[handler]
+async fn login(session: &Session, db: Data<&DatabaseConnection>) -> Html<String> {
+    // TODO: BAD BAD BAD BAD HOLY SHIT BAD
+    let admin = User::find()
+        .filter(entities::user::Column::Username.eq("admin"))
+        .one(*db)
+        .await
+        .expect("Error during database call")
+        .expect("ADMIN DOES NOT EXIST WTF");
+
+    session.set(AUTH_COOKIE_SECRET_FIELD, admin.password_hash);
+    session.set(AUTH_COOKIE_USERNAME_FIELD, "admin");
+
+    Html("Logged in".to_string())
 }
 
 async fn run_poem(db: DatabaseConnection) -> Result<()> {
     let app = Route::new()
-        .at("/test", get(test_page))
+        .nest_no_strip(
+            "/",
+            Route::new()
+                .at("/test", get(test_page))
+                .with(RequireAuth { db: db.clone() }),
+        )
+        .at("/login", get(login))
+        .with(CookieSession::new(CookieConfig::private(
+            CookieKey::generate(),
+        )))
         .with(AddData::new(db));
 
     Server::new(TcpListener::bind("0.0.0.0:1337"))
