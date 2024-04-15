@@ -1,6 +1,8 @@
-use anyhow::Result;
+use askama::Template;
+use anyhow::{Context, Result};
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use migration::{Migrator, MigratorTrait};
+use poem::{get, handler, listener::TcpListener, middleware::AddData, web::{Data, Html}, EndpointExt, Route, Server};
 use sea_orm::{ActiveValue, ConnectOptions, Database, DatabaseConnection, EntityTrait};
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -13,6 +15,12 @@ const DEFAULT_USER_PASSWORD: &str = "red1337";
 
 const PASSWORD_HASH_LEN: usize = 50;
 const PASSWORD_SALT_LEN: usize = 50;
+
+#[derive(Template)]
+#[template(path = "main.html.askama", escape = "html")]
+struct MainPage {
+    user_count: usize,
+}
 
 fn setup_tracing() -> Result<()> {
     tracing::subscriber::set_global_default(
@@ -65,6 +73,24 @@ async fn ensure_admin_account(db: &DatabaseConnection) -> Result<()> {
     Ok(())
 }
 
+#[handler]
+async fn test_page(db: Data<&DatabaseConnection>) -> Html<String> {
+    let count = User::find().all(*db).await.map(|u| u.len()).unwrap_or_default();
+    Html(MainPage { user_count: count }.render().unwrap_or("".to_string()))
+}
+
+async fn run_poem(db: DatabaseConnection) -> Result<()> {
+    let app = Route::new()
+        .at("/test", get(test_page))
+        .with(AddData::new(db));
+
+    Server::new(TcpListener::bind("0.0.0.0:1337"))
+        .name("iot-manager")
+        .run(app)
+        .await
+        .context("Server error")
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     setup_tracing()?;
@@ -83,6 +109,10 @@ async fn main() -> Result<()> {
     info!("Ensuring admin account..");
 
     ensure_admin_account(&db).await?;
+
+    info!("Starting server");
+
+    run_poem(db.clone()).await?;
 
     Ok(())
 }

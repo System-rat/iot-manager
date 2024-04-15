@@ -1,0 +1,13 @@
+<!-- vim: set ft=html: -->
+{% extends "base.html.askama" %}
+
+{% block title %}Main page{% endblock %}
+
+{% block body %}
+<p>
+  Some random text idk.
+</p>
+<p>
+  Current users on site: {{ user_count }}
+</p>
+{% endblock %}

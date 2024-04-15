@@ -1,0 +1,17 @@
+<!-- vim: set ft=html:  -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{% block title %} {{ title }} - IoT Manager {% endblock %}</title>
+    <style>
+      body {
+        background-color: black;
+        color: white;
+      }
+    </style>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    {% block body %}{% endblock %}
+  </body>
+</html>

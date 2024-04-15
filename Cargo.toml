@@ -14,8 +14,7 @@ members = [
 [dependencies]
 anyhow = "1.0.81"
 argon2 = { version = "0.5.3", features = ["std"] }
-askama = { version = "0.12.1", features = ["with-axum"] }
-axum = { version = "0.7.5", features = ["ws"] }
+askama = "0.12.1"
 clap = "4.5.4"
 sea-orm = { version = "0.12.15", features = ["macros", "sqlx-postgres", "runtime-tokio-rustls"] }
 tokio = { version = "1.37.0", features = ["full"] }
@@ -25,3 +24,4 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 migration = { path = "migration" }
 base64 = "0.22.0"
 uuid = { version = "1.8.0", features = ["v4"] }
+poem = { version = "3.0.0", features = ["server", "cookie", "csrf", "session", "static-files", "anyhow", "i18n", "websocket"]}
