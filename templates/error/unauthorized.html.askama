@@ -1,0 +1,14 @@
+<!-- vim: set ft=html: -->
+{% extends "base.html.askama" %}
+
+{% block title %}Unauthorized{% endblock %}
+
+{% block body %}
+  <div>
+    <h1>Unauthorized</h1>
+
+    <p>
+      Please <a href="/login">log in</a>
+    </p>
+  </div>
+{% endblock %}

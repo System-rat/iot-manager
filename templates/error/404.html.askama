@@ -1,0 +1,10 @@
+{% extends "base.html.askama" %}
+<!-- vim: set ft=html: -->
+
+{% block title %}404 Page not found{% endblock %}
+
+{% block body %}
+  <p>
+    404 - Page not found
+  </p>
+{% endblock %}

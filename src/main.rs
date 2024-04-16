@@ -3,12 +3,7 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use askama::Template;
 use migration::{Migrator, MigratorTrait};
 use poem::{
-    get, handler,
-    listener::TcpListener,
-    middleware::AddData,
-    session::{CookieConfig, CookieSession, Session},
-    web::{cookie::CookieKey, Data, Html},
-    Endpoint, EndpointExt, Middleware, Route, Server,
+    get, handler, http::{header, StatusCode}, listener::TcpListener, middleware::AddData, session::{CookieConfig, CookieSession, Session}, web::{cookie::CookieKey, Data, Html}, Endpoint, EndpointExt, Middleware, Response, Route, Server
 };
 use sea_orm::{
     ActiveValue, ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait,
@@ -31,6 +26,21 @@ const PASSWORD_SALT_LEN: usize = 50;
 struct MainPage {
     user_count: usize,
 }
+
+#[derive(Template)]
+#[template(source = "{% extends \"base.html.askama\" %}
+           {% block title %} IoT Manager {% endblock %}
+           {% block body %}Hello, World!{% endblock %}"
+           , ext = "html")]
+struct IndexPage;
+
+#[derive(Template)]
+#[template(path = "error/404.html.askama", escape = "html")]
+struct NotFoundErrorPage;
+
+#[derive(Template)]
+#[template(path = "error/unauthorized.html.askama", escape = "html")]
+struct UnauthorizedErrorPage;
 
 fn setup_tracing() -> Result<()> {
     tracing::subscriber::set_global_default(
@@ -113,11 +123,9 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
         // TODO: BAD BAD BAD ALSO GIGA BAD
         let session = req.extensions().get::<Session>().context("No session")?;
 
-        let error = poem::Error::from_status(poem::http::StatusCode::UNAUTHORIZED);
-
         let username = session
             .get::<String>(AUTH_COOKIE_USERNAME_FIELD)
-            .ok_or(error)?;
+            .ok_or_else(make_unauthorized_error)?;
 
         let user = User::find()
             .filter(entities::user::Column::Username.eq(username))
@@ -128,15 +136,13 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
         if user.is_some()
             && session
                 .get::<Vec<u8>>(AUTH_COOKIE_SECRET_FIELD)
-                .context("No login")?
+                .context(make_unauthorized_error())?
                 == user.unwrap().password_hash
         {
             return self.ep.call(req).await;
         }
 
-        poem::Result::Err(poem::Error::from_status(
-            poem::http::StatusCode::UNAUTHORIZED,
-        ))
+        Err(make_unauthorized_error())
     }
 }
 
@@ -154,8 +160,16 @@ async fn test_page(db: Data<&DatabaseConnection>) -> Html<String> {
     )
 }
 
+fn make_unauthorized_error() -> poem::Error {
+    poem::Error::from_response(
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(UnauthorizedErrorPage.render().unwrap_or_else(|_| "Unauthorized".to_string()))
+    )
+}
+
 #[handler]
-async fn login(session: &Session, db: Data<&DatabaseConnection>) -> Html<String> {
+async fn login(session: &Session, db: Data<&DatabaseConnection>) -> Response {
     // TODO: BAD BAD BAD BAD HOLY SHIT BAD
     let admin = User::find()
         .filter(entities::user::Column::Username.eq("admin"))
@@ -167,13 +181,19 @@ async fn login(session: &Session, db: Data<&DatabaseConnection>) -> Html<String>
     session.set(AUTH_COOKIE_SECRET_FIELD, admin.password_hash);
     session.set(AUTH_COOKIE_USERNAME_FIELD, "admin");
 
-    Html("Logged in".to_string())
+    Response::builder().status(StatusCode::FOUND).header(header::LOCATION, "/").finish()
+}
+
+#[handler]
+async fn index_page() -> Html<String> {
+    Html(IndexPage.render().unwrap_or_else(|_| "Home page".to_string()))
 }
 
 async fn run_poem(db: DatabaseConnection) -> Result<()> {
     let app = Route::new()
+        .at("/", get(index_page))
         .nest_no_strip(
-            "/",
+            "/test",
             Route::new()
                 .at("/test", get(test_page))
                 .with(RequireAuth { db: db.clone() }),
@@ -182,7 +202,15 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         .with(CookieSession::new(CookieConfig::private(
             CookieKey::generate(),
         )))
-        .with(AddData::new(db));
+        .with(AddData::new(db))
+        .catch_error(|_: poem::error::NotFoundError|
+            async move {
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(NotFoundErrorPage.render()
+                          .unwrap_or_else(|_| "Not found".to_string())
+                    )
+            });
 
     Server::new(TcpListener::bind("0.0.0.0:1337"))
         .name("iot-manager")
