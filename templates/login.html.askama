@@ -1,0 +1,14 @@
+<!-- vim: set ft=html: -->
+{% extends "base.html.askama" %}
+
+{% block title %}Login{% endblock %}
+
+{% block body %}
+<h1> Login </h1>
+<form action="/login" method="post">
+  <input type="hidden" name="csrf_token" id="csrf_token" value="{{ csrf_token }}">
+  <label> Username: <input type="text" name="username" id="username" value=""></label>
+  <label> Password: <input type="password" name="password" id="password" value=""></label>
+  <button type="submit">Login</button>
+</form>
+{% endblock %}

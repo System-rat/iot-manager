@@ -3,12 +3,19 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use askama::Template;
 use migration::{Migrator, MigratorTrait};
 use poem::{
-    get, handler, http::{header, StatusCode}, listener::TcpListener, middleware::AddData, session::{CookieConfig, CookieSession, Session}, web::{cookie::CookieKey, Data, Html}, Endpoint, EndpointExt, Middleware, Response, Route, Server
+    get, handler,
+    http::{header, StatusCode},
+    listener::TcpListener,
+    middleware::{AddData, Csrf},
+    session::{CookieConfig, CookieSession, Session},
+    web::{cookie::CookieKey, CsrfToken, CsrfVerifier, Data, Form, Html},
+    Endpoint, EndpointExt, Middleware, Response, Route, RouteMethod, Server,
 };
 use sea_orm::{
     ActiveValue, ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait,
     QueryFilter,
 };
+use serde::Deserialize;
 use tracing::info;
 use tracing_subscriber::prelude::*;
 
@@ -28,10 +35,12 @@ struct MainPage {
 }
 
 #[derive(Template)]
-#[template(source = "{% extends \"base.html.askama\" %}
+#[template(
+    source = "{% extends \"base.html.askama\" %}
            {% block title %} IoT Manager {% endblock %}
-           {% block body %}Hello, World!{% endblock %}"
-           , ext = "html")]
+           {% block body %}Hello, World!{% endblock %}",
+    ext = "html"
+)]
 struct IndexPage;
 
 #[derive(Template)]
@@ -41,6 +50,19 @@ struct NotFoundErrorPage;
 #[derive(Template)]
 #[template(path = "error/unauthorized.html.askama", escape = "html")]
 struct UnauthorizedErrorPage;
+
+#[derive(Template)]
+#[template(path = "login.html.askama", escape = "html")]
+struct LoginPage {
+    csrf_token: String,
+}
+
+#[derive(Deserialize)]
+struct LoginForm {
+    username: String,
+    password: String,
+    csrf_token: String,
+}
 
 fn setup_tracing() -> Result<()> {
     tracing::subscriber::set_global_default(
@@ -104,6 +126,7 @@ struct RequireAuthImpl<E> {
 
 const AUTH_COOKIE_SECRET_FIELD: &str = "beans";
 const AUTH_COOKIE_USERNAME_FIELD: &str = "username";
+const AUTH_COOKIE_SECRET: &str = "that's beans";
 
 impl<E: Endpoint> Middleware<E> for RequireAuth {
     type Output = RequireAuthImpl<E>;
@@ -120,7 +143,6 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
     type Output = E::Output;
 
     async fn call(&self, req: poem::Request) -> poem::Result<Self::Output> {
-        // TODO: BAD BAD BAD ALSO GIGA BAD
         let session = req.extensions().get::<Session>().context("No session")?;
 
         let username = session
@@ -131,13 +153,13 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
             .filter(entities::user::Column::Username.eq(username))
             .one(&self.db)
             .await
-            .context("DB connection error")?;
+            .context(make_internal_error())?;
 
         if user.is_some()
             && session
                 .get::<Vec<u8>>(AUTH_COOKIE_SECRET_FIELD)
                 .context(make_unauthorized_error())?
-                == user.unwrap().password_hash
+                == AUTH_COOKIE_SECRET.as_bytes()
         {
             return self.ep.call(req).await;
         }
@@ -153,6 +175,7 @@ async fn test_page(db: Data<&DatabaseConnection>) -> Html<String> {
         .await
         .map(|u| u.len())
         .unwrap_or_default();
+
     Html(
         MainPage { user_count: count }
             .render()
@@ -162,31 +185,84 @@ async fn test_page(db: Data<&DatabaseConnection>) -> Html<String> {
 
 fn make_unauthorized_error() -> poem::Error {
     poem::Error::from_response(
+        Response::builder().status(StatusCode::UNAUTHORIZED).body(
+            UnauthorizedErrorPage
+                .render()
+                .unwrap_or_else(|_| "Unauthorized".to_string()),
+        ),
+    )
+}
+
+fn make_internal_error() -> poem::Error {
+    poem::Error::from_response(
         Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(UnauthorizedErrorPage.render().unwrap_or_else(|_| "Unauthorized".to_string()))
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body("Error 500. Internal Server Error"),
     )
 }
 
 #[handler]
-async fn login(session: &Session, db: Data<&DatabaseConnection>) -> Response {
-    // TODO: BAD BAD BAD BAD HOLY SHIT BAD
-    let admin = User::find()
-        .filter(entities::user::Column::Username.eq("admin"))
+async fn login_submit(
+    session: &Session,
+    db: Data<&DatabaseConnection>,
+    verifier: &CsrfVerifier,
+    Form(login_form): Form<LoginForm>,
+) -> poem::Result<Response> {
+    if !verifier.is_valid(&login_form.csrf_token) {
+        return Err(make_unauthorized_error());
+    }
+
+    let user = User::find()
+        .filter(entities::user::Column::Username.eq(login_form.username))
         .one(*db)
         .await
-        .expect("Error during database call")
-        .expect("ADMIN DOES NOT EXIST WTF");
+        .context(make_internal_error())?;
 
-    session.set(AUTH_COOKIE_SECRET_FIELD, admin.password_hash);
-    session.set(AUTH_COOKIE_USERNAME_FIELD, "admin");
+    if let Some(user) = user {
+        let mut hashed_password = [0u8; 50];
 
-    Response::builder().status(StatusCode::FOUND).header(header::LOCATION, "/").finish()
+        argon2::Argon2::default()
+            .hash_password_into(
+                login_form.password.as_bytes(),
+                &user.password_salt,
+                &mut hashed_password,
+            )
+            .context(make_internal_error())?;
+
+        if hashed_password != *user.password_hash {
+            return Err(make_unauthorized_error());
+        }
+
+        session.set(AUTH_COOKIE_SECRET_FIELD, AUTH_COOKIE_SECRET.as_bytes());
+        session.set(AUTH_COOKIE_USERNAME_FIELD, user.username);
+
+        Ok(Response::builder()
+            .status(StatusCode::FOUND)
+            .header(header::LOCATION, "/")
+            .finish())
+    } else {
+        Err(make_unauthorized_error())
+    }
+}
+
+#[handler]
+async fn login(token: &CsrfToken) -> poem::Result<Html<String>> {
+    Ok(Html(
+        LoginPage {
+            csrf_token: token.0.to_string(),
+        }
+        .render()
+        .context(make_internal_error())?,
+    ))
 }
 
 #[handler]
 async fn index_page() -> Html<String> {
-    Html(IndexPage.render().unwrap_or_else(|_| "Home page".to_string()))
+    Html(
+        IndexPage
+            .render()
+            .unwrap_or_else(|_| "Home page".to_string()),
+    )
 }
 
 async fn run_poem(db: DatabaseConnection) -> Result<()> {
@@ -198,19 +274,19 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
                 .at("/test", get(test_page))
                 .with(RequireAuth { db: db.clone() }),
         )
-        .at("/login", get(login))
+        .at("/login", RouteMethod::new().get(login).post(login_submit))
         .with(CookieSession::new(CookieConfig::private(
             CookieKey::generate(),
         )))
         .with(AddData::new(db))
-        .catch_error(|_: poem::error::NotFoundError|
-            async move {
-                Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(NotFoundErrorPage.render()
-                          .unwrap_or_else(|_| "Not found".to_string())
-                    )
-            });
+        .with(Csrf::new())
+        .catch_error(|_: poem::error::NotFoundError| async move {
+            Response::builder().status(StatusCode::NOT_FOUND).body(
+                NotFoundErrorPage
+                    .render()
+                    .unwrap_or_else(|_| "Not found".to_string()),
+            )
+        });
 
     Server::new(TcpListener::bind("0.0.0.0:1337"))
         .name("iot-manager")

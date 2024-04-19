@@ -24,4 +24,5 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 migration = { path = "migration" }
 base64 = "0.22.0"
 uuid = { version = "1.8.0", features = ["v4"] }
-poem = { version = "3.0.0", features = ["server", "cookie", "csrf", "session", "static-files", "anyhow", "i18n", "websocket"]}
+poem = { version = "3.0.0", features = ["server", "cookie", "csrf", "session", "static-files", "anyhow", "i18n", "websocket"] }
+serde = { version = "1.0.198", features = ["derive"] }

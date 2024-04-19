@@ -1,0 +1,9 @@
+{% extends "base.html.askama" %}
+<!-- vim: set ft=html: -->
+{% block title %}500 Internal server error {% endblock %}
+
+{% block body %}
+  <p>
+    500 - Internal server error
+  </p>
+{% endblock %}

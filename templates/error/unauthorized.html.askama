@@ -1,5 +1,5 @@
-<!-- vim: set ft=html: -->
 {% extends "base.html.askama" %}
+<!-- vim: set ft=html: -->
 
 {% block title %}Unauthorized{% endblock %}
 
