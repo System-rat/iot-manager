@@ -1,0 +1,19 @@
+<!-- vim: set ft=html : -->
+
+{% extends "base.html.askama" %}
+
+{% block title %}Devices{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <ul>
+      {% for device in devices %}
+      <li>
+        <div class="device">
+          <span>{{ device.name }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endblock %}

@@ -1,0 +1,12 @@
+<!-- vim: set ft=html : -->
+{% extends "base.html.askama" %}
+
+{% block title %}Create Device{% endblock %}
+
+{% block body %}
+<form action="create" method="post">
+  <label for="name">Device name: </label>
+  <input type="text" name="name" id="device-name" value="" />
+  <button type="submit">Create device</button>
+</form>
+{% endblock %}

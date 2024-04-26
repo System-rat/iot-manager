@@ -12,6 +12,11 @@
     {% block head %}{% endblock %}
   </head>
   <body>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/test">Test page (list users)</a></li>
+      <li><a href="/devices">Create and manage devices</a></li>
+    </ul>
     {% block body %}{% endblock %}
   </body>
 </html>

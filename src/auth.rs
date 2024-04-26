@@ -26,7 +26,8 @@ use crate::{
 // --------------------
 
 const AUTH_COOKIE_SECRET_FIELD: &str = "beans";
-const AUTH_COOKIE_USERNAME_FIELD: &str = "username";
+pub(crate) const AUTH_COOKIE_USERNAME_FIELD: &str = "username";
+pub(crate) const AUTH_COOKIE_ID_FIELD: &str = "id";
 const AUTH_COOKIE_SECRET: &str = "that's beans";
 
 const DEFAULT_USER_USERNAME: &str = "admin";
@@ -175,6 +176,7 @@ pub(crate) async fn login_submit(
 
         session.set(AUTH_COOKIE_SECRET_FIELD, AUTH_COOKIE_SECRET.as_bytes());
         session.set(AUTH_COOKIE_USERNAME_FIELD, &user.username);
+        session.set(AUTH_COOKIE_ID_FIELD, &user.id);
 
         info!("New login for {} successful", user.username);
 

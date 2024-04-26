@@ -1,0 +1,12 @@
+<!-- vim: set ft=html : -->
+{% extends "base.html.askama" %}
+
+{% block title %}Success{% endblock %}
+
+{% block body %}
+  <p>
+    Device code: <code>{{ device_code }}</code>
+  </p>
+  <h1>SAVE THIS CODE. IT WILL NOT BE SHOWN AGAIN</h1>
+  <a href="/devices/">/devices/</a>
+{% endblock %}
