@@ -3,27 +3,33 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "user")]
+#[sea_orm(table_name = "device")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub username: String,
-    pub email: Option<String>,
+    pub device_name: String,
+    pub owner: Uuid,
     #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]
-    pub password_hash: Vec<u8>,
+    pub device_key_hash: Vec<u8>,
     #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]
-    pub password_salt: Vec<u8>,
+    pub device_key_salt: Vec<u8>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::device::Entity")]
-    Device,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::Owner",
+        to = "super::user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    User,
 }
 
-impl Related<super::device::Entity> for Entity {
+impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Device.def()
+        Relation::User.def()
     }
 }
 

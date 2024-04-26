@@ -11,7 +11,13 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(User::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(User::Id).uuid().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(User::Id)
+                            .uuid()
+                            .not_null()
+                            .unique_key()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(User::Username).string_len(40).not_null())
                     .col(ColumnDef::new(User::Email).string_len(40))
                     .col(ColumnDef::new(User::PasswordHash).binary_len(50).not_null())
@@ -29,7 +35,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum User {
+pub enum User {
     Table,
     Id,
     Username,
