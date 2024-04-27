@@ -8,7 +8,7 @@ use poem::{
     handler,
     http::{header, StatusCode},
     session::Session,
-    web::{CsrfToken, CsrfVerifier, Data, Form, Html},
+    web::{CsrfToken, CsrfVerifier, Data, Form, Html, Query},
     Endpoint, Middleware, Response, Route, RouteMethod,
 };
 use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
@@ -25,9 +25,9 @@ use crate::{
 // Constants
 // --------------------
 
-const AUTH_COOKIE_SECRET_FIELD: &str = "beans";
 pub(crate) const AUTH_COOKIE_USERNAME_FIELD: &str = "username";
 pub(crate) const AUTH_COOKIE_ID_FIELD: &str = "id";
+const AUTH_COOKIE_SECRET_FIELD: &str = "beans";
 const AUTH_COOKIE_SECRET: &str = "that's beans";
 
 const DEFAULT_USER_USERNAME: &str = "admin";
@@ -68,7 +68,7 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
 
         let username = session
             .get::<String>(AUTH_COOKIE_USERNAME_FIELD)
-            .ok_or_else(make_unauthorized_error)?;
+            .ok_or_else(|| make_unauthorized_error(req.original_uri().to_string()))?;
 
         let user = User::find()
             .filter(user::Column::Username.eq(username))
@@ -79,13 +79,13 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
         if user.is_some()
             && session
                 .get::<Vec<u8>>(AUTH_COOKIE_SECRET_FIELD)
-                .context(make_unauthorized_error())?
+                .context(make_unauthorized_error(req.original_uri().to_string()))?
                 == AUTH_COOKIE_SECRET.as_bytes()
         {
             return self.ep.call(req).await;
         }
 
-        Err(make_unauthorized_error())
+        Err(make_unauthorized_error(req.original_uri().to_string()))
     }
 }
 
@@ -97,6 +97,13 @@ impl<E: Endpoint> Endpoint for RequireAuthImpl<E> {
 #[template(path = "login.html.askama", escape = "html")]
 struct LoginPage {
     csrf_token: String,
+    redirect_uri: Option<String>,
+    error_msg: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct LoginPageQueryParams {
+    redirect_uri: String,
 }
 
 #[derive(Deserialize)]
@@ -141,15 +148,31 @@ pub(crate) async fn ensure_admin_account(db: &DatabaseConnection) -> anyhow::Res
     Ok(())
 }
 
+fn create_login_erro<T>(csrf_token: String, redirect_uri: Option<String>) -> poem::Result<T> {
+    Err(poem::Error::from_response(
+        Response::builder().status(StatusCode::UNAUTHORIZED).body(
+            LoginPage {
+                csrf_token,
+                redirect_uri,
+                error_msg: Some("Invalid login".to_string()),
+            }
+            .render()
+            .unwrap_or_default(),
+        ),
+    ))
+}
+
 #[handler]
 pub(crate) async fn login_submit(
     session: &Session,
     db: Data<&DatabaseConnection>,
     verifier: &CsrfVerifier,
+    token: &CsrfToken,
     Form(login_form): Form<LoginForm>,
+    query: Option<Query<LoginPageQueryParams>>,
 ) -> poem::Result<Response> {
     if !verifier.is_valid(&login_form.csrf_token) {
-        return Err(make_unauthorized_error());
+        return Err(make_unauthorized_error("/login".to_string()));
     }
 
     let user = User::find()
@@ -171,7 +194,7 @@ pub(crate) async fn login_submit(
 
         if hashed_password != *user.password_hash {
             info!("Invalid password for {}", user.username);
-            return Err(make_unauthorized_error());
+            return create_login_erro(token.0.to_owned(), query.map(|q| q.redirect_uri.clone()));
         }
 
         session.set(AUTH_COOKIE_SECRET_FIELD, AUTH_COOKIE_SECRET.as_bytes());
@@ -182,22 +205,32 @@ pub(crate) async fn login_submit(
 
         Ok(Response::builder()
             .status(StatusCode::FOUND)
-            .header(header::LOCATION, "/")
+            .header(
+                header::LOCATION,
+                query
+                    .map(|q| q.0.redirect_uri)
+                    .unwrap_or_else(|| "/".to_string()),
+            )
             .finish())
     } else {
         info!(
             "Non existing user login attempt for username \"{}\"",
             login_form.username
         );
-        Err(make_unauthorized_error())
+        return create_login_erro(token.0.to_owned(), query.map(|q| q.redirect_uri.clone()));
     }
 }
 
 #[handler]
-pub(crate) async fn login(token: &CsrfToken) -> poem::Result<Html<String>> {
+pub(crate) async fn login(
+    token: &CsrfToken,
+    query: Option<Query<LoginPageQueryParams>>,
+) -> poem::Result<Html<String>> {
     Ok(Html(
         LoginPage {
             csrf_token: token.0.to_string(),
+            redirect_uri: query.map(|q| q.0.redirect_uri),
+            error_msg: None,
         }
         .render()
         .context(make_internal_error())?,

@@ -7,7 +7,9 @@ struct NotFoundErrorPage;
 
 #[derive(Template)]
 #[template(path = "error/unauthorized.html.askama", escape = "html")]
-struct UnauthorizedErrorPage;
+struct UnauthorizedErrorPage {
+    target_uri: String,
+}
 
 pub(crate) fn make_not_found_response() -> Response {
     Response::builder().status(StatusCode::NOT_FOUND).body(
@@ -17,10 +19,10 @@ pub(crate) fn make_not_found_response() -> Response {
     )
 }
 
-pub(crate) fn make_unauthorized_error() -> poem::Error {
+pub(crate) fn make_unauthorized_error(target_url: String) -> poem::Error {
     poem::Error::from_response(
         Response::builder().status(StatusCode::UNAUTHORIZED).body(
-            UnauthorizedErrorPage
+            UnauthorizedErrorPage { target_uri: target_url }
                 .render()
                 .unwrap_or_else(|_| "Unauthorized".to_string()),
         ),

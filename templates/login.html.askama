@@ -5,10 +5,13 @@
 
 {% block body %}
 <h1> Login </h1>
-<form action="/login" method="post">
+<form action="/login{% if let Some(redirect_uri) = redirect_uri %}?redirect_uri={{redirect_uri}}{% endif %}" method="post">
   <input type="hidden" name="csrf_token" id="csrf_token" value="{{ csrf_token }}">
   <label> Username: <input type="text" name="username" id="username" value=""></label>
   <label> Password: <input type="password" name="password" id="password" value=""></label>
   <button type="submit">Login</button>
 </form>
+{% if let Some(error_msg) = error_msg %}
+<span style="color: red;">{{ error_msg }}</span>
+{% endif %}
 {% endblock %}

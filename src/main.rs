@@ -82,10 +82,10 @@ async fn index_page() -> Html<String> {
 async fn run_poem(db: DatabaseConnection) -> Result<()> {
     let app = Route::new()
         .at("/", get(index_page))
-        .nest_no_strip(
+        .nest(
             "/test",
             Route::new()
-                .at("/test", get(test_page))
+                .at("/", get(test_page))
                 .with(RequireAuth { db: db.clone() }),
         )
         .nest_no_strip("/login", auth_routes())

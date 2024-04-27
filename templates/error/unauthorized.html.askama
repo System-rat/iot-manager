@@ -8,7 +8,7 @@
     <h1>Unauthorized</h1>
 
     <p>
-      Please <a href="/login">log in</a>
+      Please <a href="/login?redirect_uri={{ target_uri }}">log in</a>
     </p>
   </div>
 {% endblock %}
