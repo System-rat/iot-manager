@@ -17,6 +17,8 @@ mod auth;
 mod device;
 mod entities;
 mod error;
+mod connection_manager;
+mod message;
 
 use crate::auth::ensure_admin_account;
 use auth::{auth_routes, RequireAuth};
