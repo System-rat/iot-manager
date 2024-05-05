@@ -31,12 +31,14 @@ struct IndexPage {
 #[derive(Serialize)]
 struct DeviceDTO {
     name: String,
+    id: String,
 }
 
 impl From<device::Model> for DeviceDTO {
     fn from(value: device::Model) -> Self {
         DeviceDTO {
             name: value.device_name,
+            id: value.id.to_string(),
         }
     }
 }
@@ -75,6 +77,7 @@ struct CreateDeviceForm {
 #[derive(Template)]
 #[template(path = "device/create_device_result.html.askama", escape = "html")]
 struct DeviceCreatedResponsePage {
+    device_id: String,
     device_code: String,
 }
 
@@ -114,12 +117,13 @@ async fn create_device(
         device_key_salt: salt.to_vec(),
     };
 
-    Device::insert(model.into_active_model())
+    let res = Device::insert(model.into_active_model())
         .exec(*db)
         .await?;
 
     Ok(Html(
         DeviceCreatedResponsePage {
+            device_id: res.last_insert_id.to_string(),
             device_code: readable_string,
         }
         .render()?,

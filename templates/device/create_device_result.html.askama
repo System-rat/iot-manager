@@ -5,6 +5,9 @@
 
 {% block body %}
   <p>
+    Device ID: {{ device_id }}
+  </p>
+  <p>
     Device code: <code>{{ device_code }}</code>
   </p>
   <h1>SAVE THIS CODE. IT WILL NOT BE SHOWN AGAIN</h1>
