@@ -24,6 +24,8 @@ use entities::prelude::*;
 use error::make_not_found_response;
 use migration::{Migrator, MigratorTrait};
 
+const SESSION_ENCRYPTION_KEY: &str = "9cPj6Y4L*-Z8pG@xFW6hmpAJnNN-RCTFRkTypXkyh9Fe8JRyear!8mM2MfXKY4Tv";
+
 #[derive(Template)]
 #[template(path = "main.html.askama", escape = "html")]
 struct MainPage {
@@ -44,9 +46,8 @@ fn setup_tracing() -> Result<()> {
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::filter::EnvFilter::builder()
-                    .with_default_directive(tracing_subscriber::filter::LevelFilter::ERROR.into())
+                    .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
                     .from_env_lossy()
-                    .add_directive("iot_manager=DEBUG".parse()?),
             )
             .with(tracing_subscriber::fmt::layer().with_ansi(true))
             .with(tracing_journald::layer()?),
@@ -91,7 +92,7 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         .nest_no_strip("/login", auth_routes())
         .nest("/devices", device_routes(db.clone()))
         .with(CookieSession::new(CookieConfig::private(
-            CookieKey::generate(),
+            CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
         )))
         .with(AddData::new(db))
         .with(Csrf::new())
