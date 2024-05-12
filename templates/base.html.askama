@@ -3,12 +3,7 @@
 <html>
   <head>
     <title>{% block title %} {{ title }} - IoT Manager {% endblock %}</title>
-    <style>
-      body {
-        background-color: black;
-        color: white;
-      }
-    </style>
+    <meta name="color-scheme" content="dark">
     {% block head %}{% endblock %}
   </head>
   <body>

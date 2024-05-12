@@ -19,6 +19,7 @@ mod entities;
 mod error;
 mod connection_manager;
 mod message;
+mod socket_connection;
 
 use crate::auth::ensure_admin_account;
 use auth::{auth_routes, RequireAuth};
