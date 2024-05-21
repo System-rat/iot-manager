@@ -4,16 +4,20 @@ use anyhow::{bail, Context, Result};
 use argon2::Argon2;
 use poem::{
     get, handler,
+    session::Session,
     web::{websocket::WebSocket, Data},
-    Endpoint, IntoResponse, Request, Route,
+    Endpoint, EndpointExt, IntoResponse, Request, Route,
 };
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
 use uuid::Uuid;
 
 use crate::{
-    connection_manager::{ConnectionManagerHandle, IncomingDeviceConnection},
+    auth::{RequireAuth, AUTH_COOKIE_ID_FIELD},
+    connection_manager::{
+        ConnectionManagerHandle, IncomingDeviceConnection, IncomingUserConnection,
+    },
     device::DEVICE_KEY_HASH_LENGTH,
-    entities::device,
+    entities::{device, user},
 };
 
 const AUTH_HEADER: &str = "X-DeviceAuth";
@@ -67,6 +71,44 @@ async fn connect_device(
     bail!("Unauthenticated")
 }
 
-pub(crate) fn ws_routes() -> impl Endpoint {
-    Route::new().at("/device", get(connect_device))
+#[handler]
+async fn connect_client(
+    session: &Session,
+    db: Data<&DatabaseConnection>,
+    cm: Data<&ConnectionManagerHandle>,
+    ws: WebSocket,
+) -> Result<impl IntoResponse> {
+    let user_id: Uuid = session.get(AUTH_COOKIE_ID_FIELD).context("Invalid login")?;
+
+    let cm_handle = cm.clone();
+
+    if let Some(user) = user::Entity::find_by_id(user_id).one(*db).await? {
+        let device_ids: Vec<Uuid> = user
+            .find_related(device::Entity)
+            .all(*db)
+            .await?
+            .into_iter()
+            .map(|d| d.id)
+            .collect();
+
+        return Ok(ws.on_upgrade(move |socket| async move {
+            let _ = cm_handle
+                .new_client(IncomingUserConnection {
+                    id: user.id.clone(),
+                    username: user.username.clone(),
+                    devices: device_ids,
+                    socket,
+                })
+                .await;
+        }));
+    }
+
+    bail!("Unauthenticated")
+}
+
+pub(crate) fn ws_routes(db: DatabaseConnection) -> impl Endpoint {
+    Route::new().at("/device", get(connect_device)).nest(
+        "/client",
+        Route::new().at("/", get(connect_client).with(RequireAuth { db })),
+    )
 }

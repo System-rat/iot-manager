@@ -34,13 +34,11 @@ struct DeviceHandle {
     command_sink: Sender<String>,
     manager: ConnectionManagerHandle,
     id: Uuid,
-    owner: Uuid,
 }
 
 struct UserHandle {
     telemetry_sink: Sender<String>,
     manager: ConnectionManagerHandle,
-    devices: Vec<Uuid>,
     id: Uuid,
 }
 
@@ -162,7 +160,6 @@ fn create_device_ingestion(
     (
         DeviceHandle {
             id: device.id,
-            owner: device.owner,
             manager: handle,
             command_sink: device_commands_tx,
         },
@@ -202,7 +199,6 @@ fn create_user_control(
     (
         UserHandle {
             id: user.id,
-            devices: user.devices,
             manager: handle,
             telemetry_sink: user_telemetry_tx,
         },

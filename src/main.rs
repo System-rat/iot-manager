@@ -96,7 +96,7 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         )
         .nest_no_strip("/login", auth_routes())
         .nest("/devices", device_routes(db.clone()))
-        .nest("/ws", ws_routes())
+        .nest("/ws", ws_routes(db.clone()))
         .with(CookieSession::new(CookieConfig::private(
             CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
         )))
