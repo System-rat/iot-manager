@@ -11,6 +11,7 @@ use poem::{
     EndpointExt, Route, Server,
 };
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, EntityTrait};
+use socket_connection::ws_routes;
 use tracing::{debug, info};
 use tracing_subscriber::prelude::*;
 
@@ -95,6 +96,7 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         )
         .nest_no_strip("/login", auth_routes())
         .nest("/devices", device_routes(db.clone()))
+        .nest("/ws", ws_routes())
         .with(CookieSession::new(CookieConfig::private(
             CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
         )))
