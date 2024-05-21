@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use askama::Template;
+use connection_manager::create_manager;
 use device::device_routes;
 use poem::{
     get, handler,
@@ -98,6 +99,7 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
             CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
         )))
         .with(AddData::new(db))
+        .with(AddData::new(create_manager()))
         .with(Csrf::new())
         .catch_error(|_: poem::error::NotFoundError| async move { make_not_found_response() });
 
