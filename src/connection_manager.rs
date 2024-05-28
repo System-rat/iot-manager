@@ -3,10 +3,12 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 use futures::{SinkExt, StreamExt};
 use poem::web::websocket::{Message, WebSocketStream};
+use serde::Deserialize;
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     Mutex,
 };
+use tracing::error;
 use uuid::Uuid;
 
 pub(crate) struct IncomingDeviceConnection {
@@ -40,6 +42,12 @@ struct UserHandle {
     telemetry_sink: Sender<String>,
     manager: ConnectionManagerHandle,
     id: Uuid,
+}
+
+#[derive(Deserialize)]
+struct DeviceCommand {
+    device_id: Uuid,
+    message: String,
 }
 
 #[derive(Clone)]
@@ -103,8 +111,8 @@ pub(crate) fn create_manager() -> ConnectionManagerHandle {
                     tokio::spawn(async move {
                         while let Some(msg) = rx.recv().await {
                             let dvcs = devices_arc.lock().await;
-                            for dev in dvcs.iter().filter(|d| user_devices.contains(&d.id)) {
-                                let _ = dev.command_sink.send(msg.clone()).await;
+                            if let Some(dev) = dvcs.iter().find(|d| user_devices.contains(&d.id)) {
+                                let _ = dev.command_sink.send(msg.message.clone()).await;
                             }
                         }
                     });
@@ -170,7 +178,7 @@ fn create_device_ingestion(
 fn create_user_control(
     user: IncomingUserConnection,
     handle: ConnectionManagerHandle,
-) -> (UserHandle, Receiver<String>) {
+) -> (UserHandle, Receiver<DeviceCommand>) {
     let (user_telemetry_tx, mut user_telemetry_rx) = channel(100);
     let (user_commands_tx, user_commands_rx) = channel(100);
 
@@ -180,7 +188,11 @@ fn create_user_control(
         while let Some(msg) = ws_rx.next().await {
             if let Ok(msg) = msg {
                 if let Message::Text(str) = msg {
-                    let _ = user_commands_tx.send(str).await;
+                    if let Ok(command) = serde_json::from_str(&str) {
+                        let _ = user_commands_tx.send(command).await;
+                    } else {
+                        error!("Invalid message: {}", str);
+                    }
                 }
             } else {
                 break;
