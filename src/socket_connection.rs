@@ -1,14 +1,13 @@
-use std::str::FromStr;
-
 use anyhow::{bail, Context, Result};
 use argon2::Argon2;
 use poem::{
     get, handler,
     session::Session,
-    web::{websocket::WebSocket, Data},
-    Endpoint, EndpointExt, IntoResponse, Request, Route,
+    web::{websocket::WebSocket, Data, Query},
+    Endpoint, EndpointExt, IntoResponse, Route,
 };
 use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
@@ -20,25 +19,20 @@ use crate::{
     entities::{device, user},
 };
 
-const AUTH_HEADER: &str = "X-DeviceAuth";
-const DEVICE_ID_HEADER: &str = "X-DeviceId";
+#[derive(Deserialize)]
+struct DeviceAuth {
+    device_id: Uuid,
+    auth_password: String
+}
 
 #[handler]
 async fn connect_device(
     db: Data<&DatabaseConnection>,
     cm: Data<&ConnectionManagerHandle>,
     ws: WebSocket,
-    request: &Request,
+    Query(device_auth): Query<DeviceAuth>,
 ) -> Result<impl IntoResponse> {
-    let device_id: Uuid = Uuid::from_str(
-        request
-            .header(DEVICE_ID_HEADER)
-            .context("No authentication")?,
-    )
-    .context("Invalid id format")?;
-    let device_pass = request.header(AUTH_HEADER).context("No authentication")?;
-
-    if let Some(device) = device::Entity::find_by_id(device_id.clone())
+    if let Some(device) = device::Entity::find_by_id(device_auth.device_id)
         .one(*db)
         .await?
     {
@@ -46,7 +40,7 @@ async fn connect_device(
 
         Argon2::default()
             .hash_password_into(
-                device_pass.as_bytes(),
+                device_auth.auth_password.as_bytes(),
                 &device.device_key_salt,
                 &mut hashed_pass,
             )
@@ -58,7 +52,7 @@ async fn connect_device(
             return Ok(ws.on_upgrade(move |socket| async move {
                 let _ = cm_handle
                     .new_device(IncomingDeviceConnection {
-                        id: device_id.clone(),
+                        id: device_auth.device_id,
                         owner: device.owner.clone(),
                         name: device.device_name.clone(),
                         socket,
