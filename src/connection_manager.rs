@@ -180,7 +180,7 @@ fn create_user_control(
         while let Some(msg) = ws_rx.next().await {
             if let Ok(msg) = msg {
                 if let Message::Text(str) = msg {
-                    let _ = user_commands_tx.send(str);
+                    let _ = user_commands_tx.send(str).await;
                 }
             } else {
                 break;
