@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use askama::Template;
+use connection_manager::create_manager;
 use device::device_routes;
 use poem::{
     get, handler,
@@ -10,6 +11,7 @@ use poem::{
     EndpointExt, Route, Server,
 };
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, EntityTrait};
+use socket_connection::ws_routes;
 use tracing::{debug, info};
 use tracing_subscriber::prelude::*;
 
@@ -17,6 +19,9 @@ mod auth;
 mod device;
 mod entities;
 mod error;
+mod connection_manager;
+mod message;
+mod socket_connection;
 
 use crate::auth::ensure_admin_account;
 use auth::{auth_routes, RequireAuth};
@@ -91,10 +96,12 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         )
         .nest_no_strip("/login", auth_routes())
         .nest("/devices", device_routes(db.clone()))
+        .nest("/ws", ws_routes(db.clone()))
         .with(CookieSession::new(CookieConfig::private(
             CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
         )))
         .with(AddData::new(db))
+        .with(AddData::new(create_manager()))
         .with(Csrf::new())
         .catch_error(|_: poem::error::NotFoundError| async move { make_not_found_response() });
 

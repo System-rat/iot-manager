@@ -86,9 +86,9 @@ async fn create_device_form() -> Result<Html<String>> {
     Ok(Html(CreateDevicePage.render()?))
 }
 
-const DEVICE_KEY_STRING_LENGTH: usize = 10;
-const DEVICE_KEY_HASH_LENGTH: usize = 50;
-const DEVICE_KEY_SALT_LENGTH: usize = 50;
+pub(crate) const DEVICE_KEY_STRING_LENGTH: usize = 10;
+pub(crate) const DEVICE_KEY_HASH_LENGTH: usize = 50;
+pub(crate) const DEVICE_KEY_SALT_LENGTH: usize = 50;
 
 #[handler]
 async fn create_device(
