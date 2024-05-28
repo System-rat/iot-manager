@@ -8,7 +8,7 @@ use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     Mutex,
 };
-use tracing::error;
+use tracing::{error, info};
 use uuid::Uuid;
 
 pub(crate) struct IncomingDeviceConnection {
@@ -57,7 +57,12 @@ pub(crate) struct ConnectionManagerHandle {
 
 impl ConnectionManagerHandle {
     pub async fn new_device(&self, device: IncomingDeviceConnection) -> Result<()> {
-        if self.command_sender.send(ConnectionManagerMessage::NewDevice(device)).await.is_err() {
+        if self
+            .command_sender
+            .send(ConnectionManagerMessage::NewDevice(device))
+            .await
+            .is_err()
+        {
             bail!("Error during send");
         }
 
@@ -65,7 +70,38 @@ impl ConnectionManagerHandle {
     }
 
     pub async fn new_client(&self, client: IncomingUserConnection) -> Result<()> {
-        if self.command_sender.send(ConnectionManagerMessage::NewClient(client)).await.is_err() {
+        if self
+            .command_sender
+            .send(ConnectionManagerMessage::NewClient(client))
+            .await
+            .is_err()
+        {
+            bail!("Error during send");
+        }
+
+        Ok(())
+    }
+
+    pub async fn device_closed(&self, device: Uuid) -> Result<()> {
+        if self
+            .command_sender
+            .send(ConnectionManagerMessage::DeviceDisconnected(device))
+            .await
+            .is_err()
+        {
+            bail!("Error during send");
+        }
+
+        Ok(())
+    }
+
+    pub async fn client_closed(&self, client: Uuid) -> Result<()> {
+        if self
+            .command_sender
+            .send(ConnectionManagerMessage::UserDisconnected(client))
+            .await
+            .is_err()
+        {
             bail!("Error during send");
         }
 
@@ -111,7 +147,10 @@ pub(crate) fn create_manager() -> ConnectionManagerHandle {
                     tokio::spawn(async move {
                         while let Some(msg) = rx.recv().await {
                             let dvcs = devices_arc.lock().await;
-                            if let Some(dev) = dvcs.iter().find(|d| user_devices.contains(&d.id)) {
+                            for dev in dvcs
+                                .iter()
+                                .filter(|d| user_devices.contains(&d.id) && d.id == msg.device_id)
+                            {
                                 let _ = dev.command_sink.send(msg.message.clone()).await;
                             }
                         }
@@ -144,17 +183,23 @@ fn create_device_ingestion(
     let (device_commands_tx, mut device_commands_rx) = channel(100);
 
     let (mut ws_tx, mut ws_rx) = device.socket.split();
+    let ws_handle = handle.clone();
+    let device_id = device.id.clone();
 
     tokio::spawn(async move {
         while let Some(msg) = ws_rx.next().await {
             if let Ok(msg) = msg {
-                if let Message::Text(str) = msg {
-                    let _ = device_telemetry_tx.send(str).await;
+                match msg {
+                    Message::Text(str) => {
+                        let _ = device_telemetry_tx.send(str).await;
+                    }
+                    _ => {}
                 }
             } else {
                 break;
             }
         }
+        let _ = ws_handle.device_closed(device_id).await;
     });
 
     tokio::spawn(async move {
@@ -183,21 +228,27 @@ fn create_user_control(
     let (user_commands_tx, user_commands_rx) = channel(100);
 
     let (mut ws_tx, mut ws_rx) = user.socket.split();
+    let ws_handle = handle.clone();
+    let client_id = user.id.clone();
 
     tokio::spawn(async move {
         while let Some(msg) = ws_rx.next().await {
             if let Ok(msg) = msg {
-                if let Message::Text(str) = msg {
-                    if let Ok(command) = serde_json::from_str(&str) {
-                        let _ = user_commands_tx.send(command).await;
-                    } else {
-                        error!("Invalid message: {}", str);
+                match msg {
+                    Message::Text(str) => {
+                        if let Ok(command) = serde_json::from_str(&str) {
+                            let _ = user_commands_tx.send(command).await;
+                        } else {
+                            error!("Invalid message: {}", str);
+                        }
                     }
+                    _ => {}
                 }
             } else {
                 break;
             }
         }
+        let _ = ws_handle.client_closed(client_id).await;
     });
 
     tokio::spawn(async move {
