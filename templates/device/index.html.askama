@@ -11,6 +11,7 @@
         <tr>
           <th>Device ID</th>
           <th>Name</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -18,6 +19,16 @@
         <tr>
           <td>{{ device.id }}</td>
           <td>{{ device.name }}</td>
+          <td>
+            <form action="/devices/reset-key" method="post">
+              <input type="text" name="id" id="id" value="{{ device.id }}" hidden>
+              <button type="submit">Reset code</button>
+            </form>
+            <form action="/devices/delete" method="post">
+              <input type="text" name="id" id="id" value="{{ device.id }}" hidden>
+              <button type="submit">Delete</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
