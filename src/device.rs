@@ -8,12 +8,7 @@ use argon2::{
 use askama::Template;
 use base64::Engine;
 use poem::{
-    handler,
-    http::{header::LOCATION, StatusCode},
-    post,
-    session::Session,
-    web::{Data, Form, Html},
-    Endpoint, EndpointExt, IntoResponse, Response, Route, RouteMethod,
+    get, handler, http::{header::LOCATION, StatusCode}, post, session::Session, web::{Data, Form, Html}, Endpoint, EndpointExt, IntoResponse, Response, Route, RouteMethod
 };
 use sea_orm::{prelude::*, DatabaseConnection, IntoActiveModel, ModelTrait, Set};
 use serde::{Deserialize, Serialize};
@@ -69,6 +64,28 @@ async fn index(session: &Session, db: Data<&DatabaseConnection>) -> Result<Html<
     Ok(Html(IndexPage { devices }.render()?))
 }
 
+#[handler]
+async fn telemetry(session: &Session, db: Data<&DatabaseConnection>) -> Result<Html<String>> {
+    let user = User::find_by_id(
+        session
+            .get::<Uuid>("id")
+            .context("User must be logged in")?,
+    )
+    .one(*db)
+    .await?
+    .context("User doesn't exits in the DB. Invalid login")?;
+
+    let devices: Vec<DeviceDTO> = user
+        .find_related(Device)
+        .all(*db)
+        .await?
+        .into_iter()
+        .map(|device| device.into())
+        .collect();
+
+    Ok(Html(DeviceTelemetryPage { devices }.render()?))
+}
+
 #[derive(Template)]
 #[template(path = "device/create_device_form.html.askama", escape = "html")]
 struct CreateDevicePage;
@@ -93,6 +110,12 @@ struct DeleteDeviceForm {
 struct DeviceCreatedResponsePage {
     device_id: String,
     device_code: String,
+}
+
+#[derive(Template)]
+#[template(path = "device/telemetry.html.askama", escape = "html")]
+struct DeviceTelemetryPage {
+    devices: Vec<DeviceDTO>,
 }
 
 #[handler]
@@ -187,6 +210,7 @@ pub(crate) fn device_routes(db: DatabaseConnection) -> impl Endpoint {
                 .get(create_device_form)
                 .post(create_device),
         )
+        .at("/telemetry", get(telemetry))
         .at("/reset-key", post(reset_device_code))
         .at("/delete", post(delete_device))
         .with(RequireAuth { db })

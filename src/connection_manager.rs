@@ -8,7 +8,7 @@ use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     Mutex,
 };
-use tracing::{error, info};
+use tracing::error;
 use uuid::Uuid;
 
 pub(crate) struct IncomingDeviceConnection {
@@ -34,13 +34,11 @@ enum ConnectionManagerMessage {
 
 struct DeviceHandle {
     command_sink: Sender<String>,
-    manager: ConnectionManagerHandle,
     id: Uuid,
 }
 
 struct UserHandle {
     telemetry_sink: Sender<String>,
-    manager: ConnectionManagerHandle,
     id: Uuid,
 }
 
@@ -213,7 +211,6 @@ fn create_device_ingestion(
     (
         DeviceHandle {
             id: device.id,
-            manager: handle,
             command_sink: device_commands_tx,
         },
         device_telemetry_rx,
@@ -262,7 +259,6 @@ fn create_user_control(
     (
         UserHandle {
             id: user.id,
-            manager: handle,
             telemetry_sink: user_telemetry_tx,
         },
         user_commands_rx,

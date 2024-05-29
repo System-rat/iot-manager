@@ -1,0 +1,114 @@
+<!-- vim: set ft=html : -->
+
+{% extends "base.html.askama" %}
+
+{% block title %}Telemetry{% endblock %}
+{% block head %}
+  <style>
+    #device-telemetry-wrapper {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      gap: 3px;
+    }
+
+    #device-list {
+      width: 200px;
+      border: solid 1px gray;
+      gap: 3px;
+    }
+
+    #device-telemetry {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    #telemetry-messages {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      max-height: 50vh;
+      overflow-y: scroll;
+      border: solid 1px gray;
+    }
+
+    #control-list {
+      border: solid 1px gray;
+      width: 100%;
+    }
+  </style>
+{% endblock %}
+
+{% block body %}
+  <h1> Telemetry data </h1>
+  <div id="device-telemetry-wrapper">
+    <div id="device-list">
+      {% for dev in devices %}
+        <button onclick="setDevice('{{ dev.id }}')"> {{ dev.name }} </button>
+      {% endfor %}
+    </div>
+    <div id="device-telemetry">
+      <div id="control-list">
+        <button class="relay-control" onclick="toggleRelay(0)">Relay 1</button>
+        <button class="relay-control" onclick="toggleRelay(1)">Relay 2</button>
+        <span class="number-data">TEMP = N/A </span>
+        <span class="number-data">HUMID = N/A</span>
+      </div>
+      <div id="telemetry-messages">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws = new WebSocket("ws://" + window.location.host + "/ws/client");
+    let telemetryElement = document.getElementById("telemetry-messages");
+    let relays = document.getElementsByClassName("relay-control");
+
+    ws.addEventListener("message", (e) => {
+      let message = JSON.parse(e.data);
+
+      if (message.telemetry != undefined && window.CURRENT_DEV == message.device_id) {
+        if (message.telemetry.Relay != undefined) {
+          let relay = message.telemetry.Relay;
+          relays[relay.id].style.backgroundColor =
+            relay.state ? "green" : "red";
+        }
+
+        let text = document.createElement("p");
+        text.textContent = JSON.stringify(message.telemetry);
+        telemetryElement.appendChild(text);
+        telemetryElement.scrollTo(0, telemetryElement.scrollHeight);
+      }
+    });
+
+    function sendRelayCommand(id, state) {
+      let command_message = JSON.stringify({
+        id: id,
+        state: state,
+      });
+
+      let command = {
+        device_id: window.CURRENT_DEV,
+        message: command_message
+      };
+
+      ws.send(JSON.stringify(command))
+    }
+
+    window.ws = ws;
+    window.setDevice = function(dev) {
+      telemetryElement.innerHTML = "";
+      window.CURRENT_DEV = dev;
+      sendRelayCommand(0, true);
+      sendRelayCommand(1, true);
+    }
+
+    window.toggleRelay = function(id) {
+      if (window.CURRENT_DEV == undefined) return;
+
+      sendRelayCommand(id, false);
+    }
+  </script>
+{% endblock %}

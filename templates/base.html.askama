@@ -12,6 +12,7 @@
       <li><a href="/">Home</a></li>
       <li><a href="/test">Test page (list users)</a></li>
       <li><a href="/devices">Create and manage devices</a></li>
+      <li><a href="/devices/telemetry">Monitor devices</a></li>
     </ul>
     {% block body %}{% endblock %}
   </body>
