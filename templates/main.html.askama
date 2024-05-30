@@ -5,7 +5,7 @@
 
 {% block body %}
 <p>
-  Some random text idk.
+  A test page.
 </p>
 <p>
   Current users on site: {{ user_count }}

@@ -5,15 +5,79 @@
     <title>{% block title %} {{ title }} - IoT Manager {% endblock %}</title>
     <meta name="color-scheme" content="dark light">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        min-width: 100vw;
+        display: flex;
+        flex-direction: column;
+      }
+
+      body > h1:first-child {
+        margin-top: 0;
+        border-bottom: solid 1px gray;
+      }
+
+      #page-wrapper {
+        display: flex;
+        flex-direction: row;
+        gap: 5px;
+        flex-grow: 1;
+      }
+
+      #navigation {
+        padding-right: 5px;
+        padding-left: 5px;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin: 0;
+        border-right: solid 1px gray;
+        display: block;
+        width: auto;
+        min-width: 150px;
+      }
+
+      ul#navigation {
+        list-style: none;
+      }
+
+      #page-body {
+        flex-grow: 1;
+      }
+
+      .btn {
+        border: none;
+        border-radius: 0;
+      }
+
+      .btn.btn-on {
+        border-right: solid green 3px;
+      }
+
+      .btn.btn-off {
+        border-right: solid red 3px;
+      }
+
+      .btn.btn-selected {
+        border: solid 2px white;
+      }
+    </style>
     {% block head %}{% endblock %}
   </head>
   <body>
-    <ul>
-      <li><a href="/">Home</a></li>
-      <li><a href="/test">Test page (list users)</a></li>
-      <li><a href="/devices">Create and manage devices</a></li>
-      <li><a href="/devices/telemetry">Monitor devices</a></li>
-    </ul>
-    {% block body %}{% endblock %}
+    <h1> IoT Manager </h1>
+    <div id="page-wrapper">
+      <ul id="navigation">
+        <li><a href="/">Home</a></li>
+        <li><a href="/test">Test page</a></li>
+        <li><a href="/devices">Manage devices</a></li>
+        <li><a href="/devices/telemetry">Monitor devices</a></li>
+      </ul>
+      <div id="page-body">
+        {% block body %}{% endblock %}
+      </div>
+    </div>
   </body>
 </html>

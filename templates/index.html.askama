@@ -1,0 +1,29 @@
+<!-- vim: set ft=html: -->
+{% extends "base.html.askama" %}
+
+{% block title %}IoT Manager{% endblock %}
+
+{% block body %}
+  <h1>Welcome to the IoT Manager Web UI</h1>
+
+  <p>
+    Use the nav tab on the left to traverse the site.
+  </p>
+
+  <p>
+    Most of the site's functionality depends on being logged in,
+    you will be redirected if you're not logged in. You can however
+    login at <a href="/login">/login</a> instead if you want to login
+    now.
+  </p>
+
+  <p>
+    The "manage devices" tab is for creating and managing devices and their
+    respective API keys and IDs.
+  </p>
+
+  <p>
+    The "monitor devices" contains the telemetry tab for viewing device messages,
+    sensor information, and remotely toggling the relays.
+  </p>
+{% endblock %}

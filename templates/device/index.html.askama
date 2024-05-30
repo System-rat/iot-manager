@@ -4,6 +4,31 @@
 
 {% block title %}Devices{% endblock %}
 
+{% block head %}
+  <style>
+    .action-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .action-list > form > button {
+      width: 100%;
+    }
+
+    table {
+      border-collapse: collapse;
+    }
+
+    td {
+      padding: 2px;
+    }
+
+    tr {
+      border-bottom: solid 1px gray;
+    }
+  </style>
+{% endblock %}
+
 {% block body %}
   <div class="content">
     <table>
@@ -19,14 +44,14 @@
         <tr>
           <td>{{ device.id }}</td>
           <td>{{ device.name }}</td>
-          <td>
+          <td class="action-list">
             <form action="/devices/reset-key" method="post">
               <input type="text" name="id" id="id" value="{{ device.id }}" hidden>
-              <button type="submit">Reset code</button>
+              <button class="btn" type="submit">Reset code</button>
             </form>
             <form action="/devices/delete" method="post">
               <input type="text" name="id" id="id" value="{{ device.id }}" hidden>
-              <button type="submit">Delete</button>
+              <button class="btn" type="submit">Delete</button>
             </form>
           </td>
         </tr>

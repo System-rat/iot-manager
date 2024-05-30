@@ -8,11 +8,12 @@
     #device-telemetry-wrapper {
       display: flex;
       flex-direction: row;
-      width: 100%;
       gap: 3px;
     }
 
     #device-list {
+      display: flex;
+      flex-direction: column;
       width: 200px;
       border: solid 1px gray;
       gap: 3px;
@@ -26,7 +27,6 @@
     }
 
     #telemetry-messages {
-      width: 100%;
       display: flex;
       flex-direction: column;
       max-height: 50vh;
@@ -36,7 +36,6 @@
 
     #control-list {
       border: solid 1px gray;
-      width: 100%;
     }
   </style>
 {% endblock %}
@@ -46,13 +45,14 @@
   <div id="device-telemetry-wrapper">
     <div id="device-list">
       {% for dev in devices %}
-        <button onclick="setDevice('{{ dev.id }}')"> {{ dev.name }} </button>
+        <button class="btn"
+          onclick="setDevice('{{ dev.id }}')" id="select-{{ dev.id }}"> {{ dev.name }} </button>
       {% endfor %}
     </div>
     <div id="device-telemetry">
       <div id="control-list">
-        <button class="relay-control" onclick="toggleRelay(0)">Relay 1</button>
-        <button class="relay-control" onclick="toggleRelay(1)">Relay 2</button>
+        <button class="relay-control btn" onclick="toggleRelay(0)">Relay 1</button>
+        <button class="relay-control btn" onclick="toggleRelay(1)">Relay 2</button>
         <span class="number-data">TEMP = N/A </span>
         <span class="number-data">HUMID = N/A</span>
       </div>
@@ -72,8 +72,11 @@
       if (message.telemetry != undefined && window.CURRENT_DEV == message.device_id) {
         if (message.telemetry.Relay != undefined) {
           let relay = message.telemetry.Relay;
-          relays[relay.id].style.backgroundColor =
-            relay.state ? "green" : "red";
+
+          const toAdd = relay.state ? "btn-on" : "btn-off";
+          const toRemove = !relay.state ? "btn-on" : "btn-off";
+          relays[relay.id].classList.add(toAdd);
+          relays[relay.id].classList.remove(toRemove);
         }
 
         let text = document.createElement("p");
@@ -101,6 +104,13 @@
     window.setDevice = function(dev) {
       telemetryElement.innerHTML = "";
       window.CURRENT_DEV = dev;
+
+      document.querySelectorAll("#device-list > button").forEach((b) => {
+        b.classList.remove("btn-selected");
+      });
+
+      document.getElementById(`select-${dev}`).classList.add("btn-selected");
+
       sendRelayCommand(0, true);
       sendRelayCommand(1, true);
     }

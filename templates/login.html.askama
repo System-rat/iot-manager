@@ -3,6 +3,27 @@
 
 {% block title %}Login{% endblock %}
 
+{% block head %}
+  <style type="text/css" media="all">
+    form {
+      display: flex;
+      flex-direction: column;
+      max-width: 350px;
+      gap: 10px;
+    }
+
+    label {
+      display: flex;
+      flex-direction: row;
+      gap: 5px;
+    }
+
+    label > input {
+      flex-grow: 1;
+    }
+  </style>
+{% endblock %}
+
 {% block body %}
 <h1> Login </h1>
 <form action="/login{% if let Some(redirect_uri) = redirect_uri %}?redirect_uri={{redirect_uri}}{% endif %}" method="post">

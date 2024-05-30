@@ -16,10 +16,10 @@ use tracing::{debug, info};
 use tracing_subscriber::prelude::*;
 
 mod auth;
+mod connection_manager;
 mod device;
 mod entities;
 mod error;
-mod connection_manager;
 mod socket_connection;
 
 use crate::auth::ensure_admin_account;
@@ -28,7 +28,8 @@ use entities::prelude::*;
 use error::make_not_found_response;
 use migration::{Migrator, MigratorTrait};
 
-const SESSION_ENCRYPTION_KEY: &str = "9cPj6Y4L*-Z8pG@xFW6hmpAJnNN-RCTFRkTypXkyh9Fe8JRyear!8mM2MfXKY4Tv";
+const SESSION_ENCRYPTION_KEY: &str =
+    "9cPj6Y4L*-Z8pG@xFW6hmpAJnNN-RCTFRkTypXkyh9Fe8JRyear!8mM2MfXKY4Tv";
 
 #[derive(Template)]
 #[template(path = "main.html.askama", escape = "html")]
@@ -37,12 +38,7 @@ struct MainPage {
 }
 
 #[derive(Template)]
-#[template(
-    source = "{% extends \"base.html.askama\" %}
-           {% block title %} IoT Manager {% endblock %}
-           {% block body %}Hello, World!{% endblock %}",
-    ext = "html"
-)]
+#[template(path = "index.html.askama", escape = "html")]
 struct IndexPage;
 
 fn setup_tracing() -> Result<()> {
@@ -51,7 +47,7 @@ fn setup_tracing() -> Result<()> {
             .with(
                 tracing_subscriber::filter::EnvFilter::builder()
                     .with_default_directive(tracing_subscriber::filter::LevelFilter::DEBUG.into())
-                    .from_env_lossy()
+                    .from_env_lossy(),
             )
             .with(tracing_subscriber::fmt::layer().with_ansi(true))
             .with(tracing_journald::layer()?),
@@ -96,9 +92,9 @@ async fn run_poem(db: DatabaseConnection) -> Result<()> {
         .nest_no_strip("/login", auth_routes())
         .nest("/devices", device_routes(db.clone()))
         .nest("/ws", ws_routes(db.clone()))
-        .with(CookieSession::new(CookieConfig::private(
-            CookieKey::from(SESSION_ENCRYPTION_KEY.as_bytes()),
-        )))
+        .with(CookieSession::new(CookieConfig::private(CookieKey::from(
+            SESSION_ENCRYPTION_KEY.as_bytes(),
+        ))))
         .with(AddData::new(db))
         .with(AddData::new(create_manager()))
         .with(Csrf::new())
