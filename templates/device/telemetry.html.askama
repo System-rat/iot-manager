@@ -53,8 +53,8 @@
       <div id="control-list">
         <button class="relay-control btn" onclick="toggleRelay(0)">Relay 1</button>
         <button class="relay-control btn" onclick="toggleRelay(1)">Relay 2</button>
-        <span class="number-data">TEMP = N/A </span>
-        <span class="number-data">HUMID = N/A</span>
+        <span class="number-data" id="temp">TEMP = N/A </span>
+        <span class="number-data" id="humid">HUMID = N/A</span>
       </div>
       <div id="telemetry-messages">
       </div>
@@ -65,24 +65,32 @@
     let ws = new WebSocket("ws://" + window.location.host + "/ws/client");
     let telemetryElement = document.getElementById("telemetry-messages");
     let relays = document.getElementsByClassName("relay-control");
+    let tempText = document.getElementById("temp");
+    let humidText = document.getElementById("humid");
 
     ws.addEventListener("message", (e) => {
       let message = JSON.parse(e.data);
 
-      if (message.telemetry != undefined && window.CURRENT_DEV == message.device_id) {
-        if (message.telemetry.Relay != undefined) {
-          let relay = message.telemetry.Relay;
+      if (message.telemetry != undefined) {
+        if (window.CURRENT_DEV == message.device_id) {
+          if (message.telemetry.Relay != undefined) {
+            let relay = message.telemetry.Relay;
 
-          const toAdd = relay.state ? "btn-on" : "btn-off";
-          const toRemove = !relay.state ? "btn-on" : "btn-off";
-          relays[relay.id].classList.add(toAdd);
-          relays[relay.id].classList.remove(toRemove);
+            const toAdd = relay.state ? "btn-on" : "btn-off";
+            const toRemove = !relay.state ? "btn-on" : "btn-off";
+            relays[relay.id].classList.add(toAdd);
+            relays[relay.id].classList.remove(toRemove);
+          } else if (message.telemetry.Sensor) {
+            let sensor = message.telemetry.Sensor;
+            tempText.textContent = `TEMP = ${sensor[0]}`;
+            humidText.textContent = `HUMID = ${sensor[0]}`;
+          }
+
+          let text = document.createElement("p");
+          text.textContent = JSON.stringify(message.telemetry);
+          telemetryElement.appendChild(text);
+          telemetryElement.scrollTo(0, telemetryElement.scrollHeight);
         }
-
-        let text = document.createElement("p");
-        text.textContent = JSON.stringify(message.telemetry);
-        telemetryElement.appendChild(text);
-        telemetryElement.scrollTo(0, telemetryElement.scrollHeight);
       }
     });
 
