@@ -83,7 +83,7 @@
           } else if (message.telemetry.Sensor) {
             let sensor = message.telemetry.Sensor;
             tempText.textContent = `TEMP = ${sensor[0]}`;
-            humidText.textContent = `HUMID = ${sensor[0]}`;
+            humidText.textContent = `HUMID = ${sensor[1]}`;
           }
 
           let text = document.createElement("p");
